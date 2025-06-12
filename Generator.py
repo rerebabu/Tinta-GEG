@@ -1,26 +1,72 @@
 import random
+import csv
 
-# Function words and affixes commonly used in Filipino grammar errors
+# -----------------------------
+# Reference tokens and affixes
+# -----------------------------
 function_words = ['ng', 'nang', 'ay', 'na', 'pa', 'ang', 'si']
 affixes = ['nag', 'mag', 'um', 'in', 'ka', 'pa', 'ma']
 
-# Substitution based on Filipino affixes
-def substitute_affix_based(word):
-    word_lc = word.lower()
+# -----------------------------
+# Substitution Error Frequencies
+# -----------------------------
+substitution_errors = {
+    "ng_nang": 0.25,
+    "verb_affix": 0.20,
+    "reduplication": 0.15,
+    "enclitic_shift": 0.10,
+    "determiner_confusion": 0.10,
+    "copula_drop": 0.10,
+    "spacing_error": 0.10
+}
+
+# -----------------------------
+# Substitution Handlers
+# -----------------------------
+def apply_ng_nang_confusion(word):
+    return "nang" if word == "ng" else "ng" if word == "nang" else word
+
+def apply_verb_affix_error(word):
     for affix in affixes:
-        if word_lc.startswith(affix):
+        if word.lower().startswith(affix):
             root = word[len(affix):]
             options = [
-                root,                  # Drop affix
-                root + root,           # Reduplication
-                'na' + root,           # Wrong prefix
-                affix + root + 'an'    # Overextended
+                root,
+                affix + root + 'an',
+                affix + root[::-1]
             ]
             return random.choice(options)
-    return random.choice(function_words)  # Fallback
+    return word
 
-# Main function to apply random operations
-def apply_artificial_errors(tokens, prob=0.5):
+def apply_reduplication(word):
+    return word + word
+
+def apply_enclitic_shift(word):
+    return '' if word in ['na', 'pa', 'din', 'rin'] else word
+
+def apply_determiner_confusion(word):
+    return "si" if word == "ang" else "ang" if word == "si" else word
+
+def apply_copula_drop(word):
+    return '' if word == "ay" else word
+
+def apply_spacing_error(word):
+    return word + random.choice(["siya", "ito", "kami", "na"])
+
+error_function_map = {
+    "ng_nang": apply_ng_nang_confusion,
+    "verb_affix": apply_verb_affix_error,
+    "reduplication": apply_reduplication,
+    "enclitic_shift": apply_enclitic_shift,
+    "determiner_confusion": apply_determiner_confusion,
+    "copula_drop": apply_copula_drop,
+    "spacing_error": apply_spacing_error
+}
+
+# -----------------------------
+# GEG Logic
+# -----------------------------
+def apply_artificial_errors(tokens, prob=0.6):
     output = []
     i = 0
 
@@ -28,44 +74,61 @@ def apply_artificial_errors(tokens, prob=0.5):
         current = tokens[i]
         operation = None
 
-        # Decide randomly whether to perform an operation
         if random.random() < prob:
             operation = random.choice(['insert', 'delete', 'substitute', 'swap'])
-            print(f"Applying {operation} on token: '{current}'")
 
         if operation == 'insert':
-            rand_token = random.choice(function_words)
-            output.append(rand_token)
+            output.append(random.choice(function_words))
             output.append(current)
 
         elif operation == 'delete':
-            # Skip the current token
-            print(f"Deleted token: '{current}'")
+            pass  # skip
 
         elif operation == 'substitute':
-            new_token = substitute_affix_based(current)
-            output.append(new_token)
-            print(f"Substituted '{current}' → '{new_token}'")
+            error_type = random.choices(
+                population=list(substitution_errors.keys()),
+                weights=list(substitution_errors.values()),
+                k=1
+            )[0]
+            substituted = error_function_map[error_type](current)
+            if substituted:
+                output.append(substituted)
 
         elif operation == 'swap' and i + 1 < len(tokens):
-            next_token = tokens[i + 1]
-            output.append(next_token)
+            output.append(tokens[i + 1])
             output.append(current)
-            print(f"Swapped '{current}' ↔ '{next_token}'")
-            i += 1  # Skip the next token after swap
+            i += 1
 
         else:
-            # No operation or invalid swap — keep original
             output.append(current)
 
         i += 1
 
     return output
 
-# Example usage
-if __name__ == "__main__":
-    original = ['Naglakad', 'siya', 'sa', 'parke', 'kahapon', '.']
-    print("\nOriginal: ", ' '.join(original))
+# -----------------------------
+# Load clean sentences
+# -----------------------------
+def load_sentences_from_file(file_path):
+    with open(file_path, encoding='utf-8') as f:
+        return [line.strip().split() for line in f if line.strip()]
 
-    noisy = apply_artificial_errors(original, prob=0.6)
-    print("With Errors:", ' '.join(noisy))
+# -----------------------------
+# MAIN EXECUTION
+# -----------------------------
+if __name__ == "__main__":
+    # 1. Load input
+    sentence_list = load_sentences_from_file("sentences.txt")
+
+    # 2. Write to CSV
+    with open("error_data.csv", "w", newline='', encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["incorrect", "correct"])
+
+        for tokens in sentence_list:
+            correct = ' '.join(tokens)
+            incorrect_tokens = apply_artificial_errors(tokens, prob=0.6)
+            incorrect = ' '.join(incorrect_tokens)
+            writer.writerow([incorrect, correct])
+
+    print("✅ 'error_data.csv' successfully generated.")
