@@ -1,5 +1,6 @@
 import random
 import csv
+import re
 
 # -----------------------------
 # Reference tokens and affixes
@@ -66,24 +67,28 @@ error_function_map = {
 # -----------------------------
 # GEG Logic
 # -----------------------------
-def apply_artificial_errors(tokens, prob=0.6):
-    output = []
-    i = 0
+def apply_artificial_errors(tokens, max_errors = 2):
+    output = tokens.copy()
 
-    while i < len(tokens):
-        current = tokens[i]
-        operation = None
+    # Randomly choose at most two token indices to introduce an error to
+    indices_to_modify = sorted(random.sample(range(len(tokens)), k = min(max_errors, len(tokens)))) 
 
-        if random.random() < prob:
-            operation = random.choice(['insert', 'delete', 'substitute', 'swap'])
+    for i in indices_to_modify:
+        current = output[i]
+        operation = random.choice(['insert', 'delete', 'substitute', 'swap'])
 
+        # Insert operation
         if operation == 'insert':
-            output.append(random.choice(function_words))
-            output.append(current)
+            rand_token = random.choice(function_words)
+            output.insert(i, rand_token) # Insert a random token at i
+            print(f"Inserted '{rand_token}' before '{current}'")
 
+        # Delete operation
         elif operation == 'delete':
-            pass  # skip
+            output[i] = ''  # Mark for deletion
+            print(f"Deleted '{current}'")
 
+        # Substitute operation
         elif operation == 'substitute':
             error_type = random.choices(
                 population=list(substitution_errors.keys()),
@@ -92,26 +97,27 @@ def apply_artificial_errors(tokens, prob=0.6):
             )[0]
             substituted = error_function_map[error_type](current)
             if substituted:
-                output.append(substituted)
+                output[i] = substituted
+            print(f"Substituted '{current}' → '{substituted}' | Error type: {error_type}")
 
-        elif operation == 'swap' and i + 1 < len(tokens):
-            output.append(tokens[i + 1])
-            output.append(current)
-            i += 1
+        # Swap operation
+        elif operation == 'swap' and i < len(tokens) - 1:
+            output[i], output[i + 1] = output[i + 1], output[i]
+            print(f"Swapped '{current}' ↔ '{output[i]}'")
 
-        else:
-            output.append(current)
+    # Remove empty strings from 'delete'
+    return [token for token in output if token != '']
 
-        i += 1
-
-    return output
+def tokenize(text):
+    # Splits words and keeps punctuation as separate tokens
+    return re.findall(r'\w+|[^\w\s]', text, re.UNICODE)
 
 # -----------------------------
 # Load clean sentences
 # -----------------------------
 def load_sentences_from_file(file_path):
     with open(file_path, encoding='utf-8') as f:
-        return [line.strip().split() for line in f if line.strip()]
+        return [tokenize(line.strip()) for line in f if line.strip()]
 
 # -----------------------------
 # MAIN EXECUTION
@@ -127,8 +133,11 @@ if __name__ == "__main__":
 
         for tokens in sentence_list:
             correct = ' '.join(tokens)
-            incorrect_tokens = apply_artificial_errors(tokens, prob=0.6)
+            print(f"Original Sentence: {correct}\n")
+            incorrect_tokens = apply_artificial_errors(tokens, max_errors = 2)
             incorrect = ' '.join(incorrect_tokens)
+            print(f"\nGenerated Erroneous Sentence: {incorrect}")
+            print("-----------------------------")
             writer.writerow([incorrect, correct])
 
     print("✅ 'error_data.csv' successfully generated.")
