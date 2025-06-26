@@ -6,7 +6,7 @@ import re
 # Reference tokens and affixes
 # -----------------------------
 function_words = ['ng', 'nang', 'ay', 'na', 'pa', 'ang', 'si']
-affixes = ['nag', 'mag', 'um', 'in', 'ka', 'pa', 'ma']
+# affixes = ['nag', 'mag', 'um', 'in', 'ka', 'pa', 'ma']
 
 # -----------------------------
 # Substitution Error Frequencies
@@ -24,7 +24,7 @@ substitution_errors = {
 # Substitution Handlers
 # -----------------------------
 def apply_ligature_confusion(output, sub_indices):
-    print("Checking for error type: ligature") # for tracking
+    # print("Checking for error type: ligature") # for tracking
 
     # Randomly choose a valid, untampered token
     target_tokens = ['na', 'ng']
@@ -34,11 +34,11 @@ def apply_ligature_confusion(output, sub_indices):
     ]
 
     if not matching_indices:
-        print("No valid token found.") # for tracking 
+        # print("No valid token found.") # for tracking 
         return False
     else: 
         rand_index = random.choice(matching_indices)
-        print(f"Substituted '{output[rand_index]}' →") # for tracking
+        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
     # Substitution logic: replace 'na' with 'ng' and vice versa
     if output[rand_index] == 'na':
@@ -46,12 +46,12 @@ def apply_ligature_confusion(output, sub_indices):
     elif output[rand_index] == 'ng':
         output[rand_index] = 'na'
 
-    print(output[rand_index]) # for tracking
+    #print(output[rand_index]) # for tracking
     sub_indices.append(rand_index)
     return True
 
 def apply_enclitic_confusion(output, sub_indices):
-    print("Checking for error type: enclitic") # for tracking
+    #print("Checking for error type: enclitic") # for tracking
 
     # Randomly choose a valid, untampered token
     target_tokens = ['din', 'rin', 'daw', 'raw', 'doon', 'roon']
@@ -61,11 +61,11 @@ def apply_enclitic_confusion(output, sub_indices):
     ]
 
     if not matching_indices:
-        print("No valid token found.") # for tracking 
+        # print("No valid token found.") # for tracking 
         return False
     else: 
         rand_index = random.choice(matching_indices)
-        print(f"Substituted '{output[rand_index]}' →") # for tracking
+        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
     # Substitution logic: replace the first letter /d/ to /r/ and vice versa
     if output[rand_index][0] == 'd':
@@ -73,12 +73,12 @@ def apply_enclitic_confusion(output, sub_indices):
     elif output[rand_index] == 'r':
         output[rand_index] = 'd' + output[rand_index][1:]
 
-    print(output[rand_index]) # for tracking
+    # print(output[rand_index]) # for tracking
     sub_indices.append(rand_index)
     return True
 
 def apply_hyphenation_error(output, sub_indices):
-    print("Checking for error type: hyphenation") # for tracking
+    # print("Checking for error type: hyphenation") # for tracking
 
     # Randomly choose a valid, untampered token
     matching_indices = [
@@ -87,21 +87,21 @@ def apply_hyphenation_error(output, sub_indices):
     ]
 
     if not matching_indices:
-        print("No valid token found.") # for tracking 
+        # print("No valid token found.") # for tracking 
         return False
     else: 
         rand_index = random.choice(matching_indices)
-        print(f"Substituted '{output[rand_index]}' →") # for tracking
+        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
         # Substitution logic: remove the hyphen
         output[rand_index] = output[rand_index].replace('-', '')
 
-        print(output[rand_index]) # for tracking
+        # print(output[rand_index]) # for tracking
         sub_indices.append(rand_index)
         return True
 
 def apply_ng_nang_confusion(output, sub_indices):
-    print("Checking for error type: ng_nang") # for tracking
+    # print("Checking for error type: ng_nang") # for tracking
 
     # Randomly choose a valid, untampered token
     target_tokens = ['ng', 'nang']
@@ -111,11 +111,11 @@ def apply_ng_nang_confusion(output, sub_indices):
     ]
 
     if not matching_indices:
-        print("No valid token found.") # for tracking 
+        # print("No valid token found.") # for tracking 
         return False
     else: 
         rand_index = random.choice(matching_indices)
-        print(f"Substituted '{output[rand_index]}' →") # for tracking
+        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
     # Substitution logic: replace 'ng' with 'nang' and vice versa
     if output[rand_index] == 'ng':
@@ -123,12 +123,12 @@ def apply_ng_nang_confusion(output, sub_indices):
     elif output[rand_index] == 'nang':
         output[rand_index] = 'ng'
 
-    print(output[rand_index]) # for tracking
+    # print(output[rand_index]) # for tracking
     sub_indices.append(rand_index)
     return True
 
 def apply_morphological_error(output, sub_indices):
-    print("Checking for error type: morphological") # for tracking
+    # print("Checking for error type: morphological") # for tracking
 
     # Randomly choose a valid, untampered token
     target_subtokens = ['pang', 'pam', 'pan']
@@ -138,11 +138,11 @@ def apply_morphological_error(output, sub_indices):
     ]
 
     if not matching_indices:
-        print("No valid token found.") # for tracking 
+        # print("No valid token found.") # for tracking 
         return False
     else: 
         rand_index = random.choice(matching_indices)
-        print(f"Substituted '{output[rand_index]}' →") # for tracking
+        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
     # Substitution logic: replace the prefix with another random one
     for token in target_subtokens:
@@ -154,12 +154,12 @@ def apply_morphological_error(output, sub_indices):
                 break
             else: return False
 
-    print(output[rand_index]) # for tracking
+    # print(output[rand_index]) # for tracking
     sub_indices.append(rand_index)
     return True
 
 def apply_repetition(output, sub_indices):
-    print("Checking for error type: repetition") # for tracking
+    # print("Checking for error type: repetition") # for tracking
 
     # Randomly choose an untampered token
     matching_indices = [
@@ -168,16 +168,16 @@ def apply_repetition(output, sub_indices):
     ]
 
     if not matching_indices:
-        print("No valid token found.") # for tracking 
+        # print("No valid token found.") # for tracking 
         return False
     else: 
         rand_index = random.choice(matching_indices)
-        print(f"Substituted '{output[rand_index]}' →") # for tracking
+        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
         # Substitution logic: insert a duplication of the token
         output.insert(rand_index, output[rand_index])
 
-        print(output[rand_index] + output[rand_index]) # for tracking
+        # print(output[rand_index] + output[rand_index]) # for tracking
 
         # Keep track of indices shift
         sub_indices = [i + 1 if i >= rand_index else i for i in sub_indices]
@@ -222,13 +222,13 @@ def apply_artificial_errors(tokens, max_errors = 2):
 
             sub_indices = [i + 1 if i > rand_index else i for i in sub_indices] # Keep track of indices shift
 
-            print(f"Inserted '{rand_token}' before '{output[rand_index + 1]}'") # for tracking
+            # print(f"Inserted '{rand_token}' before '{output[rand_index + 1]}'") # for tracking
 
         # Delete operation
         elif rand_operation == 'delete':
             rand_index = random.randint(0, len(output) - 1) # Choose a random index
 
-            print(f"Deleted '{output[rand_index]}'") # for tracking
+            # print(f"Deleted '{output[rand_index]}'") # for tracking
 
             del output[rand_index]
 
@@ -254,7 +254,7 @@ def apply_artificial_errors(tokens, max_errors = 2):
                         k=1
                     )[0]
                 else:
-                    print("No valid substitution operation can be performed.") # for tracking
+                    # print("No valid substitution operation can be performed.") # for tracking
                     break
 
                 # Repeat choosing of error type until a valid one is performed
@@ -272,7 +272,7 @@ def apply_artificial_errors(tokens, max_errors = 2):
                 if output[rand_index] != output[rand_index + 1]:
                     break
 
-            print(f"Swapped '{output[rand_index]}' ↔ '{output[rand_index + 1]}'")
+            # print(f"Swapped '{output[rand_index]}' ↔ '{output[rand_index + 1]}'")
 
             output[rand_index], output[rand_index + 1] = output[rand_index + 1], output[rand_index]
 
@@ -323,12 +323,12 @@ if __name__ == "__main__":
 
         for tokens in sentence_list:
             correct = detokenize(tokens)
-            print(f"Original Sentence: {correct}\n")
+            # print(f"Original Sentence: {correct}\n")
             incorrect_tokens, performed_operation, generated_error_type = apply_artificial_errors(tokens, max_errors = 2)
             incorrect = detokenize(incorrect_tokens)
             error_info = f"operations: {', '.join(performed_operation)}; errors: {', '.join(generated_error_type)}"
-            print(f"\nGenerated Erroneous Sentence: {incorrect}")
-            print("-----------------------------")
+            # print(f"\nGenerated Erroneous Sentence: {incorrect}")
+            # print("-----------------------------")
             writer.writerow([incorrect, correct, error_info])
 
     print("✅ 'error_data.csv' successfully generated.")
