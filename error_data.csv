@@ -1,4 +1,5 @@
-incorrect,correct
-Naglakad sa siya parke kahapon .,Naglakad siya sa parke kahapon .
-Umalis Ana nang maaga .,Umalis si Ana nang maaga .
-Nagluto si nanay ng . ulam,Nagluto si nanay ng ulam .
+incorrect,correct,errors
+Naglakad siya sa sa parke ang kahapon.,Naglakad siya sa parke kahapon.,"operations: substitute, insert; errors: repetition"
+Umalis si Ana ng maaga.,Umalis si Ana nang maaga.,operations: substitute; errors: ng_nang
+Nagluto si ng nanay ulam.,Nagluto si nanay ng ulam.,operations: swap; errors: 
+Iba-iba siya ng. gusto,Iba-iba siya ng gusto.,operations: swap; errors: 
