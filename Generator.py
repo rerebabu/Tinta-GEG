@@ -320,13 +320,10 @@ def load_sentences_from_file(file_path):
 if __name__ == "__main__":
 
     from collections import Counter
+    sentence_list = load_sentences_from_file("sentences.txt")
     error_summary = Counter()
     operation_summary = Counter()
     
-    # 1. Load input
-    sentence_list = load_sentences_from_file("sentences.txt")
-
-    # 2. Write to CSV
     with open("error_data.csv", "w", newline='', encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["incorrect", "correct", "errors"])
@@ -336,11 +333,12 @@ if __name__ == "__main__":
             # print(f"Original Sentence: {correct}\n")
             incorrect_tokens, performed_operation, generated_error_type = apply_artificial_errors(tokens, max_errors = 2)
             incorrect = detokenize(incorrect_tokens)
-            error_info = f"operations: {', '.join(performed_operation)}; errors: {', '.join(generated_error_type)}"
+            error_info = f"operations: {', '.join(performed_operation)}; errors: {', '.join(generated_error_type) if generated_error_type else 'None'}"
             # print(f"\nGenerated Erroneous Sentence: {incorrect}")
             # print("-----------------------------")
             writer.writerow([incorrect, correct, error_info])
             error_summary.update(generated_error_type)
+            operation_summary.update(performed_operation)
 
     print("✅ 'error_data.csv' successfully generated.")
 
