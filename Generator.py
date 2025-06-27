@@ -27,10 +27,10 @@ def apply_ligature_confusion(output, sub_indices):
     # print("Checking for error type: ligature") # for tracking
 
     # Randomly choose a valid, untampered token
-    target_tokens = ['na', 'ng']
+    target_tokens = ['ng']
     matching_indices = [
         i for i, value in enumerate(output) 
-        if value.lower() in target_tokens and i not in sub_indices
+        if value.lower().endswith(tuple(target_tokens)) and i not in sub_indices
     ]
 
     if not matching_indices:
@@ -40,15 +40,20 @@ def apply_ligature_confusion(output, sub_indices):
         rand_index = random.choice(matching_indices)
         # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
-    # Substitution logic: replace 'na' with 'ng' and vice versa
-    if output[rand_index] == 'na':
-        output[rand_index] = 'ng'
-    elif output[rand_index] == 'ng':
-        output[rand_index] = 'na'
+        # Substitution logic: omit /-ng/ from root word & connect it to the succeeding word with 'na'
+        for token in target_tokens:
+            if output[rand_index].endswith(token):
+                output[rand_index] = output[rand_index][:-len(token)]
+                break
+        
+        output.insert(rand_index + 1, 'na')
 
-    #print(output[rand_index]) # for tracking
-    sub_indices.append(rand_index)
-    return True
+        # print(f"'{output[rand_index]}' + ' ' + '{output[rand_index + 1]}'") # for tracking
+
+        # Keep track of indices shift
+        sub_indices = [i + 1 if i > rand_index else i for i in sub_indices]
+        sub_indices.append(rand_index)
+        return True
 
 def apply_enclitic_confusion(output, sub_indices):
     #print("Checking for error type: enclitic") # for tracking
@@ -211,7 +216,7 @@ def apply_artificial_errors(tokens, max_errors = 2):
             if value not in performed_operation
         ]
 
-        rand_operation = random.choice(filtered_operation)
+        rand_operation = random.choice(operation)
 
         # Insert operation
         if rand_operation == 'insert':
@@ -220,7 +225,7 @@ def apply_artificial_errors(tokens, max_errors = 2):
             rand_index = random.randint(0, len(output) - 1)
             output.insert(rand_index, rand_token)
 
-            sub_indices = [i + 1 if i > rand_index else i for i in sub_indices] # Keep track of indices shift
+            sub_indices = [i + 1 if i >= rand_index else i for i in sub_indices] # Keep track of indices shift
 
             # print(f"Inserted '{rand_token}' before '{output[rand_index + 1]}'") # for tracking
 
