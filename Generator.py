@@ -59,7 +59,7 @@ def apply_enclitic_confusion(output, sub_indices):
     #print("Checking for error type: enclitic") # for tracking
 
     # Randomly choose a valid, untampered token
-    target_tokens = ['din', 'rin', 'daw', 'raw', 'doon', 'roon']
+    target_tokens = ['din', 'rin', 'daw', 'raw', 'doon', 'roon', 'diyan', 'riyan']
     matching_indices = [
         i for i, value in enumerate(output) 
         if value.lower() in target_tokens and i not in sub_indices
@@ -321,6 +321,7 @@ if __name__ == "__main__":
 
     from collections import Counter
     error_summary = Counter()
+    operation_summary = Counter()
     
     # 1. Load input
     sentence_list = load_sentences_from_file("sentences.txt")
@@ -347,10 +348,19 @@ if __name__ == "__main__":
 # Write error summary to CSV
 # -----------------------------
 
+# Count None errors
+none_error_count = 0
+with open("error_data.csv", encoding="utf-8") as f:
+    reader = csv.reader(f)
+    next(reader)  # skip header
+    for row in reader:
+        if 'errors: None' in row[2]:
+            none_error_count += 1
+
+
 summary_file = "error_distribution.csv"
 total_errors = sum(error_summary.values())
 
-# Optional: label mapping for readability
 error_label_map = {
         "ligature": "Use of ligatures",
         "enclitic": "Use of enclitics",
@@ -361,14 +371,35 @@ error_label_map = {
     }
 
 with open(summary_file, "w", newline='', encoding="utf-8") as summary_csv:
-        writer = csv.writer(summary_csv)
-        writer.writerow(["Category of errors", "Frequency", "Percentage"])
+    writer = csv.writer(summary_csv)
+    writer.writerow(["Category of errors", "Frequency", "Percentage"])
 
-        for error, freq in error_summary.items():
-            label = error_label_map.get(error, error)
-            percent = (freq / total_errors) * 100
-            writer.writerow([label, freq, f"{percent:.1f}%"])
+    for error, freq in error_summary.items():
+        label = error_label_map.get(error, error)
+        percent = (freq / total_errors) * 100 if total_errors > 0 else 0
+        writer.writerow([label, freq, f"{percent:.1f}%"])
 
-        writer.writerow(["Total error", total_errors, "100%"])
+    # Add None row
+    writer.writerow(["No substitution errors (None)", none_error_count, "-"])
+
+    writer.writerow(["Total error", total_errors, "100%"])
 
 print(f"📁 '{summary_file}' successfully generated.")
+
+# -----------------------------
+# Write operation summary to CSV
+# -----------------------------
+operation_file = "operation_distribution.csv"
+total_operations = sum(operation_summary.values())
+
+with open(operation_file, "w", newline='', encoding="utf-8") as op_csv:
+    writer = csv.writer(op_csv)
+    writer.writerow(["Type of operation", "Frequency", "Percentage"])
+
+    for operation, freq in operation_summary.items():
+        percent = (freq / total_operations) * 100 if total_operations > 0 else 0
+        writer.writerow([operation.capitalize(), freq, f"{percent:.1f}%"])
+
+    writer.writerow(["Total operations", total_operations, "100%"])
+
+print(f"📁 '{operation_file}' successfully generated.")
