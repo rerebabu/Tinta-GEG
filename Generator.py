@@ -54,7 +54,7 @@ def apply_enclitic_confusion(output, sub_indices):
     #print("Checking for error type: enclitic") # for tracking
 
     # Randomly choose a valid, untampered token
-    target_tokens = ['din', 'rin', 'daw', 'raw', 'doon', 'roon']
+    target_tokens = ['din', 'rin', 'daw', 'raw', 'doon', 'roon', 'diyan', 'riyan']
     matching_indices = [
         i for i, value in enumerate(output) 
         if value.lower() in target_tokens and i not in sub_indices
@@ -316,7 +316,8 @@ if __name__ == "__main__":
 
     from collections import Counter
     error_summary = Counter()
-    
+    operation_summary = Counter()
+
     # 1. Load input
     sentence_list = load_sentences_from_file("sentences.txt")
 
@@ -335,6 +336,7 @@ if __name__ == "__main__":
             # print("-----------------------------")
             writer.writerow([incorrect, correct, error_info])
             error_summary.update(generated_error_type)
+            operation_summary.update(performed_operation)
 
     print("✅ 'error_data.csv' successfully generated.")
 
@@ -367,3 +369,22 @@ with open(summary_file, "w", newline='', encoding="utf-8") as summary_csv:
         writer.writerow(["Total error", total_errors, "100%"])
 
 print(f"📁 '{summary_file}' successfully generated.")
+
+# -----------------------------
+# Write operation summary to CSV
+# -----------------------------
+operation_file = "operation_distribution.csv"
+total_operations = sum(operation_summary.values())
+
+with open(operation_file, "w", newline='', encoding="utf-8") as op_csv:
+    writer = csv.writer(op_csv)
+    writer.writerow(["Type of operation", "Frequency", "Percentage"])
+
+    for operation, freq in operation_summary.items():
+        percent = (freq / total_operations) * 100 if total_operations > 0 else 0
+        writer.writerow([operation.capitalize(), freq, f"{percent:.1f}%"])
+
+    writer.writerow(["Total operations", total_operations, "100%"])
+
+print(f"📁 '{operation_file}' successfully generated.")
+
