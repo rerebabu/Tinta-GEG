@@ -313,6 +313,10 @@ def load_sentences_from_file(file_path):
 # MAIN EXECUTION
 # -----------------------------
 if __name__ == "__main__":
+
+    from collections import Counter
+    error_summary = Counter()
+    
     # 1. Load input
     sentence_list = load_sentences_from_file("sentences.txt")
 
@@ -330,5 +334,36 @@ if __name__ == "__main__":
             # print(f"\nGenerated Erroneous Sentence: {incorrect}")
             # print("-----------------------------")
             writer.writerow([incorrect, correct, error_info])
+            error_summary.update(generated_error_type)
 
     print("✅ 'error_data.csv' successfully generated.")
+
+# -----------------------------
+# Write error summary to CSV
+# -----------------------------
+
+summary_file = "error_distribution.csv"
+total_errors = sum(error_summary.values())
+
+# Optional: label mapping for readability
+error_label_map = {
+        "ligature": "Use of ligatures",
+        "enclitic": "Use of enclitics",
+        "hyphenation": "Hyphenation",
+        "ng_nang": "Use of “nang” and “ng”",
+        "morphological": "Morphophonemic change",
+        "repetition": "Word repetition",
+    }
+
+with open(summary_file, "w", newline='', encoding="utf-8") as summary_csv:
+        writer = csv.writer(summary_csv)
+        writer.writerow(["Category of errors", "Frequency", "Percentage"])
+
+        for error, freq in error_summary.items():
+            label = error_label_map.get(error, error)
+            percent = (freq / total_errors) * 100
+            writer.writerow([label, freq, f"{percent:.1f}%"])
+
+        writer.writerow(["Total error", total_errors, "100%"])
+
+print(f"📁 '{summary_file}' successfully generated.")

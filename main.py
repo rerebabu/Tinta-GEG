@@ -1,1 +1,0 @@
-print("Initial Project Checking bukas sa AI")
