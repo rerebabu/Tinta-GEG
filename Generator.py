@@ -27,10 +27,10 @@ def apply_ligature_confusion(output, sub_indices):
     # print("Checking for error type: ligature") # for tracking
 
     # Randomly choose a valid, untampered token
-    target_tokens = ['na', 'ng']
+    target_tokens = ['ng']
     matching_indices = [
         i for i, value in enumerate(output) 
-        if value.lower() in target_tokens and i not in sub_indices
+        if value.lower().endswith(tuple(target_tokens)) and i not in sub_indices
     ]
 
     if not matching_indices:
@@ -40,15 +40,20 @@ def apply_ligature_confusion(output, sub_indices):
         rand_index = random.choice(matching_indices)
         # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
-    # Substitution logic: replace 'na' with 'ng' and vice versa
-    if output[rand_index] == 'na':
-        output[rand_index] = 'ng'
-    elif output[rand_index] == 'ng':
-        output[rand_index] = 'na'
+        # Substitution logic: omit /-ng/ from root word & connect it to the succeeding word with 'na'
+        for token in target_tokens:
+            if output[rand_index].endswith(token):
+                output[rand_index] = output[rand_index][:-len(token)]
+                break
+        
+        output.insert(rand_index + 1, 'na')
 
-    #print(output[rand_index]) # for tracking
-    sub_indices.append(rand_index)
-    return True
+        # print(f"'{output[rand_index]}' + ' ' + '{output[rand_index + 1]}'") # for tracking
+
+        # Keep track of indices shift
+        sub_indices = [i + 1 if i > rand_index else i for i in sub_indices]
+        sub_indices.append(rand_index)
+        return True
 
 def apply_enclitic_confusion(output, sub_indices):
     #print("Checking for error type: enclitic") # for tracking
@@ -211,7 +216,7 @@ def apply_artificial_errors(tokens, max_errors = 2):
             if value not in performed_operation
         ]
 
-        rand_operation = random.choice(filtered_operation)
+        rand_operation = random.choice(operation)
 
         # Insert operation
         if rand_operation == 'insert':
@@ -220,7 +225,7 @@ def apply_artificial_errors(tokens, max_errors = 2):
             rand_index = random.randint(0, len(output) - 1)
             output.insert(rand_index, rand_token)
 
-            sub_indices = [i + 1 if i > rand_index else i for i in sub_indices] # Keep track of indices shift
+            sub_indices = [i + 1 if i >= rand_index else i for i in sub_indices] # Keep track of indices shift
 
             # print(f"Inserted '{rand_token}' before '{output[rand_index + 1]}'") # for tracking
 
@@ -313,6 +318,10 @@ def load_sentences_from_file(file_path):
 # MAIN EXECUTION
 # -----------------------------
 if __name__ == "__main__":
+
+    from collections import Counter
+    error_summary = Counter()
+    
     # 1. Load input
     sentence_list = load_sentences_from_file("sentences.txt")
 
@@ -330,5 +339,36 @@ if __name__ == "__main__":
             # print(f"\nGenerated Erroneous Sentence: {incorrect}")
             # print("-----------------------------")
             writer.writerow([incorrect, correct, error_info])
+            error_summary.update(generated_error_type)
 
     print("✅ 'error_data.csv' successfully generated.")
+
+# -----------------------------
+# Write error summary to CSV
+# -----------------------------
+
+summary_file = "error_distribution.csv"
+total_errors = sum(error_summary.values())
+
+# Optional: label mapping for readability
+error_label_map = {
+        "ligature": "Use of ligatures",
+        "enclitic": "Use of enclitics",
+        "hyphenation": "Hyphenation",
+        "ng_nang": "Use of “nang” and “ng”",
+        "morphological": "Morphophonemic change",
+        "repetition": "Word repetition",
+    }
+
+with open(summary_file, "w", newline='', encoding="utf-8") as summary_csv:
+        writer = csv.writer(summary_csv)
+        writer.writerow(["Category of errors", "Frequency", "Percentage"])
+
+        for error, freq in error_summary.items():
+            label = error_label_map.get(error, error)
+            percent = (freq / total_errors) * 100
+            writer.writerow([label, freq, f"{percent:.1f}%"])
+
+        writer.writerow(["Total error", total_errors, "100%"])
+
+print(f"📁 '{summary_file}' successfully generated.")
