@@ -58,13 +58,14 @@ def apply_ligature_confusion(output, sub_indices):
 
     exclude_tokens = {
         "ng", "nang", "lang", "lamang", "habang", "kung",
-        "bilang", "kabilang", "maging", "naging", "ang"
+        "bilang", "kabilang", "maging", "naging", "ang",
+        "upang"
     }
 
     truncate_g_tokens = {
         "gayong", "gayunmang", "ganyang", "ganong", "ganung",
         "aling", "saang", "kailang", "ilang", "anumang", "sinomang",
-        "alinmang", "aking", "aming", "ating"
+        "alinmang", "aking", "aming", "ating", "mayroong", "merong"
     }
 
     matching_indices = [
@@ -72,6 +73,7 @@ def apply_ligature_confusion(output, sub_indices):
         if ((value.lower().endswith("ng") and value.lower() not in exclude_tokens)
             or value.lower() in truncate_g_tokens)
         and i not in sub_indices
+        and not (i != 0 and value[0].isupper())
     ]
 
     if not matching_indices:
@@ -105,7 +107,7 @@ def apply_morphological_error(output, sub_indices):
                         'mag': ['nag', 'pag'], 'nag': ['mag', 'pag'], 'pag': ['mag', 'nag']}
     matching_indices, original_prefixes = [], {}
     for i, token in enumerate(output):
-        if i not in sub_indices:
+        if i not in sub_indices and not (i != 0 and token[0].isupper()):
             for prefix in morph_confusions.keys():
                 if token.lower().startswith(prefix):
                     matching_indices.append(i)
@@ -125,7 +127,8 @@ def apply_morphological_error(output, sub_indices):
 def apply_ng_nang_confusion(output, sub_indices):
     """Swaps 'ng' and 'nang'."""
     matching_indices = [i for i, value in enumerate(output)
-                        if value.lower() in ['ng', 'nang'] and i not in sub_indices]
+                        if value.lower() in ['ng', 'nang'] and i not in sub_indices
+                        and not (i != 0 and value[0].isupper())]
     if not matching_indices: return False
     rand_index = random.choice(matching_indices)
     original_token = output[rand_index]
@@ -198,6 +201,7 @@ def apply_extra_space(output, sub_indices):
     matching_indices = [
         i for i in range(len(output))
         if i not in sub_indices and len(output[i]) > 1  # must be splittable
+        and not (i != 0 and output[i][0].isupper())
     ]
 
     if not matching_indices:
@@ -228,7 +232,8 @@ def apply_enclitic_confusion(output, sub_indices):
     reverse_pairs = {v: k for k, v in target_pairs.items()}
     all_targets = list(target_pairs.keys()) + list(reverse_pairs.keys())
     matching_indices = [i for i, value in enumerate(output)
-                        if value.lower() in all_targets and i not in sub_indices]
+                        if value.lower() in all_targets and i not in sub_indices
+                        and not (i != 0 and value[0].isupper())]
     if not matching_indices: return False
     rand_index = random.choice(matching_indices)
     original_token = output[rand_index]
@@ -240,22 +245,26 @@ def apply_enclitic_confusion(output, sub_indices):
     sub_indices.append(rand_index)
     return True
 
+import re
+import random
+
 def apply_incorrect_syllable_reduplication(output, sub_indices):
     """
-    Simulates incorrect reduplication placement.
-    E.g. kagigising (correct) → kakagising (error)
-    by moving reduplication to the previous syllable.
-    Skips words starting with common Filipino prefixes
+    Simulates incorrect reduplication placement:
+    e.g. kagigising → kakagising (not kagising),
+         katatawanan → kakatawanan (not kakawanan).
+    Moves reduplication to 'ka' CV but retains original reduplicated syllable.
     """
 
-    target_prefixes = ( "ka", "ika" )
+    target_prefixes = ("ka", "ika")
 
     matching_indices = [
         i for i, value in enumerate(output)
         if (
             i not in sub_indices
             and value.lower().startswith(target_prefixes)
-            and re.search(r"([bcdfghjklmnpqrstvwxyz][aeiou])\1", value, re.IGNORECASE)
+            and re.search(r"^(?:ika|ka)([bcdfghjklmnpqrstvwxyz]?[aeiou])\1", value, re.IGNORECASE)
+            and not (i != 0 and value[0].isupper())
         )
     ]
 
@@ -265,25 +274,26 @@ def apply_incorrect_syllable_reduplication(output, sub_indices):
     rand_index = random.choice(matching_indices)
     token = output[rand_index]
 
-    # Match CV reduplication inside the token (e.g., gi-gi)
-    m = re.match(r"^(.+?)([bcdfghjklmnpqrstvwxyz])([aeiou])\2\3(.+)$", token, re.IGNORECASE)
+    # Match prefix ("ka"/"ika"), first repeated syllable, and the rest
+    m = re.match(
+        r"^(ika|ka)"                  # prefix group
+        r"([bcdfghjklmnpqrstvwxyz]?[aeiou])"  # first CV or V
+        r"\2"                         # repeated CV or V
+        r"(.+)$",                     # rest of the word
+        token,
+        re.IGNORECASE
+    )
+
     if not m:
         return False
 
-    prefix, consonant, vowel, rest = m.groups()
+    prefix, first_syllable, rest = m.groups()
 
-    # Match first CV of the prefix (e.g., ka- from kagigising)
-    first_cv_match = re.match(r"^([bcdfghjklmnpqrstvwxyz])([aeiou])(.+)$", prefix, re.IGNORECASE)
-    if not first_cv_match:
-        return False
-
-    first_consonant, first_vowel, remaining_prefix = first_cv_match.groups()
-
-    # Construct erroneous token: move reduplication earlier
-    erroneous_token = (
-        first_consonant + first_vowel + first_consonant + first_vowel +
-        remaining_prefix + consonant + vowel + rest
-    )
+    # Construct erroneous token: reduplicate the prefix CV instead of next syllable
+    erroneous_token = prefix + "ka" + first_syllable + rest
+    # Example:
+    # ka + ta + ...  =>  ka + ka + ta + ...
+    # ika + u + ...  =>  ika + ika + u + ...
 
     output[rand_index] = erroneous_token
     sub_indices.append(rand_index)
@@ -413,16 +423,31 @@ def apply_one_artificial_error(tokens):
     """
     output = list(tokens)
 
-    # --- Priority Step: Check for enclitic candidates ---
+    # --- Priority Step: Check for syllable duplication candidates ---
+    syllable_duplication_target_prefixes = ("ka", "ika")
+    contains_syllable_duplication = any(token.lower().startswith(syllable_duplication_target_prefixes)
+                                        and re.search(r"^(?:ika|ka)([bcdfghjklmnpqrstvwxyz]?[aeiou])\1", token, re.IGNORECASE) 
+                                        and not (i != 0 and token[0].isupper())
+                                        for i, token in enumerate(output)
+                                    )
+
+    if contains_syllable_duplication:
+        temp_output = list(output)
+        if apply_incorrect_syllable_reduplication(temp_output, []):
+            return temp_output, ['substitute'], ['incorrect_syllable_reduplication']
+
+    # --- Next Priority Step: Check for enclitic candidates ---
     enclitic_targets = ['din', 'rin', 'daw', 'raw', 'doon', 'roon', 'diyan', 'riyan']
-    contains_enclitic = any(token.lower() in enclitic_targets for token in output)
+    contains_enclitic = any(token.lower() in enclitic_targets 
+                            and not (i != 0 and token[0].isupper())
+                            for i, token in enumerate(output))
 
     if contains_enclitic:
         temp_output = list(output)
         if apply_enclitic_confusion(temp_output, []):
             return temp_output, ['substitute'], ['enclitic']
 
-    # --- If no enclitic error applied, proceed with other operations ---
+    # --- If no syllable reduplcation or enclitic error applied, proceed with other operations ---
     operations_to_try = ['substitute', 'delete', 'swap']
     random.shuffle(operations_to_try)
 
@@ -497,7 +522,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"⚠️  Could not load dataset from Hub. Reason: {e}")
         print("--> Using built-in sample sentences as a fallback.")
-        sentence_sources = ["Fallback EncountereD"]
+        sentence_sources = ["Fallback Encountered"]
 
     tokenized_sentences = [tokenize(text) for text in sentence_sources]
 
