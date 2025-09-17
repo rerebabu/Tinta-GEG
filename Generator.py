@@ -58,8 +58,7 @@ def apply_ligature_confusion(output, sub_indices):
 
     exclude_tokens = {
         "ng", "nang", "lang", "lamang", "habang", "kung",
-        "bilang", "kabilang", "maging", "naging", "kapag",
-        "huwag", "wag", "'wag"
+        "bilang", "kabilang", "maging", "naging", "ang"
     }
 
     truncate_g_tokens = {
