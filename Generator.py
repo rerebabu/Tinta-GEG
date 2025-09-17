@@ -1,390 +1,565 @@
 import random
 import csv
 import re
+import pandas as pd
+from collections import Counter
 
 # -----------------------------
-# Reference tokens and affixes
+# Reference tokens
 # -----------------------------
-function_words = ['ng', 'nang', 'ay', 'na', 'pa', 'ang', 'si']
-# affixes = ['nag', 'mag', 'um', 'in', 'ka', 'pa', 'ma']
+# Words for the new, realistic insertion function
+filler_words = ['at', 'mga', 'nga', 'naman', 'po', 'ulit']
+# Small, common function words prone to stuttering/repetition
+repeatable_words = ['ang', 'ng', 'sa', 'na', 'ay']
+# Words for the legacy 'insert' operation (now just a fallback)
+function_words = ['ng', 'nang', 'ay', 'na', 'pa', 'ang', 'si', 'sa', 'mga', 'ito', 'niya']
 
-# -----------------------------
-# Substitution Error Frequencies
-# -----------------------------
-substitution_errors = {
-    "ligature": 62.64,
-    "enclitic": 21.67,
-    "hyphenation": 6.37,
-    "ng_nang": 4.66,
-    "morphological": 3.04,
-    "repetition": 1.62,
-}
 
 # -----------------------------
-# Substitution Handlers
+# Substitution Handlers (With New Insertion Logic)
 # -----------------------------
-def apply_ligature_confusion(output, sub_indices):
-    # print("Checking for error type: ligature") # for tracking
 
-    # Randomly choose a valid, untampered token
-    target_tokens = ['na', 'ng']
-    matching_indices = [
-        i for i, value in enumerate(output) 
-        if value.lower() in target_tokens and i not in sub_indices
-    ]
+def apply_insertion_error(output, sub_indices):
+    """
+    A more realistic insertion function. It either repeats a common function
+    word (stutter) or adds a common filler word between tokens.
+    """
+    action = random.choice(['repeat', 'filler'])
 
-    if not matching_indices:
-        # print("No valid token found.") # for tracking 
-        return False
-    else: 
-        rand_index = random.choice(matching_indices)
-        # print(f"Substituted '{output[rand_index]}' →") # for tracking
+    # Action 1: Repeat an existing common word (e.g., "ang ang bata")
+    if action == 'repeat':
+        eligible_indices = [i for i, token in enumerate(output)
+                            if token.lower() in repeatable_words and i not in sub_indices]
+        if not eligible_indices: return False # Can't repeat if no repeatable words found
 
-    # Substitution logic: replace 'na' with 'ng' and vice versa
-    if output[rand_index] == 'na':
-        output[rand_index] = 'ng'
-    elif output[rand_index] == 'ng':
-        output[rand_index] = 'na'
+        rand_index = random.choice(eligible_indices)
+        output.insert(rand_index + 1, output[rand_index]) # Insert duplicate after the original
+        # Update indices and mark both as involved
+        sub_indices[:] = [idx + 1 if idx > rand_index else idx for idx in sub_indices]
+        sub_indices.extend([rand_index, rand_index + 1])
+        return True
 
-    #print(output[rand_index]) # for tracking
-    sub_indices.append(rand_index)
-    return True
-
-def apply_enclitic_confusion(output, sub_indices):
-    #print("Checking for error type: enclitic") # for tracking
-
-    # Randomly choose a valid, untampered token
-    target_tokens = ['din', 'rin', 'daw', 'raw', 'doon', 'roon', 'diyan', 'riyan']
-    matching_indices = [
-        i for i, value in enumerate(output) 
-        if value.lower() in target_tokens and i not in sub_indices
-    ]
-
-    if not matching_indices:
-        # print("No valid token found.") # for tracking 
-        return False
-    else: 
-        rand_index = random.choice(matching_indices)
-        # print(f"Substituted '{output[rand_index]}' →") # for tracking
-
-    # Substitution logic: replace the first letter /d/ to /r/ and vice versa
-    if output[rand_index][0] == 'd':
-        output[rand_index] = 'r' + output[rand_index][1:]    
-    elif output[rand_index] == 'r':
-        output[rand_index] = 'd' + output[rand_index][1:]
-
-    # print(output[rand_index]) # for tracking
-    sub_indices.append(rand_index)
-    return True
-
-def apply_hyphenation_error(output, sub_indices):
-    # print("Checking for error type: hyphenation") # for tracking
-
-    # Randomly choose a valid, untampered token
-    matching_indices = [
-        i for i, value in enumerate(output) 
-        if '-' in value and i not in sub_indices
-    ]
-
-    if not matching_indices:
-        # print("No valid token found.") # for tracking 
-        return False
-    else: 
-        rand_index = random.choice(matching_indices)
-        # print(f"Substituted '{output[rand_index]}' →") # for tracking
-
-        # Substitution logic: remove the hyphen
-        output[rand_index] = output[rand_index].replace('-', '')
-
-        # print(output[rand_index]) # for tracking
+    # Action 2: Add a filler word between two existing words
+    elif action == 'filler':
+        # Find a valid spot between two tokens to insert a word
+        if len(output) < 2: return False
+        rand_index = random.randint(1, len(output) - 1)
+        rand_word = random.choice(filler_words)
+        output.insert(rand_index, rand_word)
+        # Update indices and mark the new word
+        sub_indices[:] = [idx + 1 if idx >= rand_index else idx for idx in sub_indices]
         sub_indices.append(rand_index)
         return True
 
-def apply_ng_nang_confusion(output, sub_indices):
-    # print("Checking for error type: ng_nang") # for tracking
+    return False
 
-    # Randomly choose a valid, untampered token
-    target_tokens = ['ng', 'nang']
+def apply_ligature_confusion(output, sub_indices):
+    """Simulates ligature error: split token ending in '-ng' or '-g' into token + 'na'."""
+
+    exclude_tokens = {
+        "ng", "nang", "lang", "lamang", "habang", "kung",
+        "bilang", "kabilang", "maging", "naging", "kapag",
+        "huwag", "wag", "'wag"
+    }
+
+    truncate_g_tokens = {
+        "gayong", "gayunmang", "ganyang", "ganong", "ganung",
+        "aling", "saang", "kailang", "ilang", "anumang", "sinomang",
+        "alinmang", "aking", "aming", "ating"
+    }
+
     matching_indices = [
-        i for i, value in enumerate(output) 
-        if value.lower() in target_tokens and i not in sub_indices
+        i for i, value in enumerate(output)
+        if ((value.lower().endswith("ng") and value.lower() not in exclude_tokens)
+            or value.lower() in truncate_g_tokens)
+        and i not in sub_indices
     ]
 
     if not matching_indices:
-        # print("No valid token found.") # for tracking 
         return False
-    else: 
-        rand_index = random.choice(matching_indices)
-        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
-    # Substitution logic: replace 'ng' with 'nang' and vice versa
-    if output[rand_index] == 'ng':
-        output[rand_index] = 'nang'
-    elif output[rand_index] == 'nang':
-        output[rand_index] = 'ng'
+    rand_index = random.choice(matching_indices)
+    token = output[rand_index]
 
-    # print(output[rand_index]) # for tracking
-    sub_indices.append(rand_index)
+    if token.lower() in truncate_g_tokens:
+        stripped = token[:-1]  # strip "-g"
+    else:
+        stripped = token[:-2]  # strip "-ng"
+
+    output[rand_index] = stripped
+    output.insert(rand_index + 1, "na")
+
+    # Adjust sub_indices in-place
+    for idx in range(len(sub_indices)):
+        if sub_indices[idx] > rand_index:
+            sub_indices[idx] += 1
+
+    sub_indices.append(rand_index)      # Mark modified token
+    sub_indices.append(rand_index + 1)  # Mark inserted "na"
+
     return True
 
 def apply_morphological_error(output, sub_indices):
-    # print("Checking for error type: morphological") # for tracking
-
-    # Randomly choose a valid, untampered token
-    target_subtokens = ['pang', 'pam', 'pan']
-    matching_indices = [
-        i for i, value in enumerate(output) 
-        if value.lower().startswith(tuple(target_subtokens)) and i not in sub_indices
-    ]
-
-    if not matching_indices:
-        # print("No valid token found.") # for tracking 
-        return False
-    else: 
-        rand_index = random.choice(matching_indices)
-        # print(f"Substituted '{output[rand_index]}' →") # for tracking
-
-    # Substitution logic: replace the prefix with another random one
-    for token in target_subtokens:
-        if output[rand_index].startswith(token):
-            alternatives = [t for t in target_subtokens if t != token]
-            if alternatives:
-                replacement = random.choice(alternatives)
-                output[rand_index] = replacement + output[rand_index][len(token):]
-                break
-            else: return False
-
-    # print(output[rand_index]) # for tracking
+    """Simulates confusion between related morphophonemic prefixes."""
+    morph_confusions = {'pam': ['pan', 'pang'], 'pan': ['pam', 'pang'], 'pang': ['pam', 'pan'],
+                        'man': ['mam', 'mang'], 'mam': ['man', 'mang'], 'mang': ['man', 'mam'],
+                        'mag': ['nag', 'pag'], 'nag': ['mag', 'pag'], 'pag': ['mag', 'nag']}
+    matching_indices, original_prefixes = [], {}
+    for i, token in enumerate(output):
+        if i not in sub_indices:
+            for prefix in morph_confusions.keys():
+                if token.lower().startswith(prefix):
+                    matching_indices.append(i)
+                    original_prefixes[i] = prefix
+                    break
+    if not matching_indices: return False
+    rand_index = random.choice(matching_indices)
+    original_token = output[rand_index]
+    found_prefix = original_prefixes[rand_index]
+    replacement_prefix = random.choice(morph_confusions[found_prefix])
+    new_token = replacement_prefix + original_token[len(found_prefix):]
+    if original_token.istitle(): new_token = new_token.capitalize()
+    output[rand_index] = new_token
     sub_indices.append(rand_index)
     return True
 
-def apply_repetition(output, sub_indices):
-    # print("Checking for error type: repetition") # for tracking
+def apply_ng_nang_confusion(output, sub_indices):
+    """Swaps 'ng' and 'nang'."""
+    matching_indices = [i for i, value in enumerate(output)
+                        if value.lower() in ['ng', 'nang'] and i not in sub_indices]
+    if not matching_indices: return False
+    rand_index = random.choice(matching_indices)
+    original_token = output[rand_index]
+    if original_token.lower() == 'ng':
+        output[rand_index] = 'nang' if original_token.islower() else 'Nang'
+    else:
+        output[rand_index] = 'ng' if original_token.islower() else 'Ng'
+    sub_indices.append(rand_index)
+    return True
+
+def apply_missing_space(output, sub_indices):
+    """Simulates missing spaces by merging tokens"""
 
     # Randomly choose an untampered token
     matching_indices = [
-        i for i, value in enumerate(output) 
+        i for i, value in enumerate(output)
         if i not in sub_indices
     ]
 
-    if not matching_indices:
-        # print("No valid token found.") # for tracking 
+    if len(matching_indices) < 2:  # Need at least 2 tokens to merge
         return False
-    else: 
+
+    rand_index = random.choice(matching_indices)
+
+    # Decide randomly: merge with previous or next token
+    merge_with_prev = random.choice([True, False])
+
+    if merge_with_prev and rand_index > 0:
+        merge_index = rand_index - 1
+        output[merge_index] = output[merge_index] + output[rand_index]
+        del output[rand_index]
+
+        # Adjust indices due to deletion
+        sub_indices = [i - 1 if i > rand_index else i for i in sub_indices]
+        sub_indices.append(merge_index)
+
+    elif not merge_with_prev and rand_index < len(output) - 1:
+        merge_index = rand_index
+        output[merge_index] = output[merge_index] + output[merge_index + 1]
+        del output[merge_index + 1]
+
+        # Adjust indices due to deletion
+        sub_indices = [i - 1 if i > merge_index + 1 else i for i in sub_indices]
+        sub_indices.append(merge_index)
+
+    else:
+        # If merge not possible in chosen direction (e.g., first token, no prev),
+        # retry by merging with the available neighbor
+        if rand_index > 0:
+            merge_index = rand_index - 1
+            output[merge_index] = output[merge_index] + output[rand_index]
+            del output[rand_index]
+            sub_indices = [i - 1 if i > rand_index else i for i in sub_indices]
+            sub_indices.append(merge_index)
+        elif rand_index < len(output) - 1:
+            merge_index = rand_index
+            output[merge_index] = output[merge_index] + output[merge_index + 1]
+            del output[merge_index + 1]
+            sub_indices = [i - 1 if i > merge_index + 1 else i for i in sub_indices]
+            sub_indices.append(merge_index)
+        else:
+            return False  # Single-token case — cannot merge
+
+    return True
+
+def apply_extra_space(output, sub_indices):
+    """Simulates extra spaces by splitting a random token"""
+
+    # Randomly choose an untampered token
+    matching_indices = [
+        i for i in range(len(output))
+        if i not in sub_indices and len(output[i]) > 1  # must be splittable
+    ]
+
+    if not matching_indices:
+        return False
+
+    rand_index = random.choice(matching_indices)
+    token = output[rand_index]
+
+    # Pick a random split point (not at start or end, to avoid empty token)
+    split_pos = random.randint(1, len(token) - 1)
+    first_half = token[:split_pos]
+    second_half = token[split_pos:]
+
+    # Replace token with first half, then insert second half right after
+    output[rand_index] = first_half
+    output.insert(rand_index + 1, second_half)
+
+    # Adjust indices due to insertion (shift any later sub_indices)
+    sub_indices = [i + 1 if i > rand_index else i for i in sub_indices]
+    sub_indices.append(rand_index)       # mark first half as modified
+    sub_indices.append(rand_index + 1)   # mark second half as modified
+
+    return True
+
+def apply_enclitic_confusion(output, sub_indices):
+    """Simulates the common d/r interchange rule error."""
+    target_pairs = {'din': 'rin', 'daw': 'raw', 'doon': 'roon', 'diyan': 'riyan'}
+    reverse_pairs = {v: k for k, v in target_pairs.items()}
+    all_targets = list(target_pairs.keys()) + list(reverse_pairs.keys())
+    matching_indices = [i for i, value in enumerate(output)
+                        if value.lower() in all_targets and i not in sub_indices]
+    if not matching_indices: return False
+    rand_index = random.choice(matching_indices)
+    original_token = output[rand_index]
+    if original_token.lower() in target_pairs:
+        replacement = target_pairs[original_token.lower()]
+    else:
+        replacement = reverse_pairs[original_token.lower()]
+    output[rand_index] = replacement if original_token.islower() else replacement.capitalize()
+    sub_indices.append(rand_index)
+    return True
+
+def apply_incorrect_syllable_reduplication(output, sub_indices):
+    """
+    Simulates incorrect reduplication placement.
+    E.g. kagigising (correct) → kakagising (error)
+    by moving reduplication to the previous syllable.
+    Skips words starting with common Filipino prefixes
+    """
+
+    target_prefixes = ( "ka", "ika" )
+
+    matching_indices = [
+        i for i, value in enumerate(output)
+        if (
+            i not in sub_indices
+            and value.lower().startswith(target_prefixes)
+            and re.search(r"([bcdfghjklmnpqrstvwxyz][aeiou])\1", value, re.IGNORECASE)
+        )
+    ]
+
+    if not matching_indices:
+        return False
+
+    rand_index = random.choice(matching_indices)
+    token = output[rand_index]
+
+    # Match CV reduplication inside the token (e.g., gi-gi)
+    m = re.match(r"^(.+?)([bcdfghjklmnpqrstvwxyz])([aeiou])\2\3(.+)$", token, re.IGNORECASE)
+    if not m:
+        return False
+
+    prefix, consonant, vowel, rest = m.groups()
+
+    # Match first CV of the prefix (e.g., ka- from kagigising)
+    first_cv_match = re.match(r"^([bcdfghjklmnpqrstvwxyz])([aeiou])(.+)$", prefix, re.IGNORECASE)
+    if not first_cv_match:
+        return False
+
+    first_consonant, first_vowel, remaining_prefix = first_cv_match.groups()
+
+    # Construct erroneous token: move reduplication earlier
+    erroneous_token = (
+        first_consonant + first_vowel + first_consonant + first_vowel +
+        remaining_prefix + consonant + vowel + rest
+    )
+
+    output[rand_index] = erroneous_token
+    sub_indices.append(rand_index)
+    return True
+
+
+def apply_morphological_punctuation_error(output, sub_indices):
+    """Simulates omission of hyphen or apostrophe"""
+
+    target_tokens = ['-', "'"]
+
+    # Randomly choose a valid, untampered token
+    matching_indices = [
+        i for i, value in enumerate(output)
+        if value in target_tokens and i not in sub_indices
+    ]
+
+    if not matching_indices:
+        return False
+    else:
         rand_index = random.choice(matching_indices)
-        # print(f"Substituted '{output[rand_index]}' →") # for tracking
 
-        # Substitution logic: insert a duplication of the token
-        output.insert(rand_index, output[rand_index])
-
-        # print(output[rand_index] + output[rand_index]) # for tracking
-
-        # Keep track of indices shift
-        sub_indices = [i + 1 if i >= rand_index else i for i in sub_indices]
+        # Substitution logic: remove hyphen or apostrophe
+        output[rand_index] = output[rand_index].replace('-', '').replace("'", '')
         sub_indices.append(rand_index)
-
         return True
 
+def apply_sentence_level_punc_error(output, sub_indices):
+    """Simulates sentence-level punctuation error by repeating punctuation marks.
+    - Periods won't be repeated exactly 3 times (to avoid forming an ellipsis).
+    - Existing ellipses (...) will be replaced with a different number of periods.
+    """
+
+    target_punc = ['.', ',', '?', '!', '"', '...']
+    matching_indices = [
+        i for i, value in enumerate(output)
+        if value in target_punc and i not in sub_indices
+    ]
+
+    if not matching_indices:
+        return False
+
+    rand_index = random.choice(matching_indices)
+    token = output[rand_index]
+
+    # Determine repetition count
+    if token == '.':
+        repeat_count = random.choice([2, 4])  # avoid 3 to prevent ellipsis
+        output[rand_index] = '.' * repeat_count
+
+    elif token == '...':
+        # Replace with a different number of periods (not 3)
+        repeat_count = random.choice([1, 2, 4])
+        output[rand_index] = '.' * repeat_count
+
+    else:
+        # Other punctuation can repeat freely (2–5 times)
+        repeat_count = random.randint(2, 4)
+        output[rand_index] = token * repeat_count
+
+    sub_indices.append(rand_index)
+    return True
+
+# -----------------------------
+# Error Map (Now includes the new insertion error type)
+# -----------------------------
 error_function_map = {
+    "insertion": apply_insertion_error,
     "ligature": apply_ligature_confusion,
-    "enclitic": apply_enclitic_confusion,
-    "hyphenation": apply_hyphenation_error,
-    "ng_nang": apply_ng_nang_confusion,
     "morphological": apply_morphological_error,
-    "repetition": apply_repetition,
+    "ng_nang": apply_ng_nang_confusion,
+    "missing_space": apply_missing_space,
+    "extra_space": apply_extra_space,
+    "enclitic": apply_enclitic_confusion,
+    "incorrect_syllable_reduplication": apply_incorrect_syllable_reduplication,
+    "morphological_punctuation": apply_morphological_punctuation_error,
+    "sentence_level_punctuation": apply_sentence_level_punc_error,
 }
 
+def havePunctuation(token): # holding for marks in swapping
+  return bool(re.fullmatch(r'[.,!?;:]', token))
+
+# Typo-style functions (not in the map, called directly as basic operations)
+def perform_deletion(output):
+    if len(output) <= 1: return False
+    rand_index = random.randrange(len(output))
+    del output[rand_index]
+    return True
+
+def perform_swap(output):
+    if len(output) <= 1: return False
+
+    validIndex = []
+    restrictedWords = {'ng', 'nang'}
+
+    for i in range(len(output) - 1):
+        tokA = output[i].lower()
+        tokB = output[i + 1].lower()
+
+        haveRestrictedWord = tokA in restrictedWords or tokB in restrictedWords
+        bothPunct = havePunctuation(output[i]) and havePunctuation(output[i + 1])
+
+        createsCluster = (
+            havePunctuation(output[i]) and (i > 0 and havePunctuation(output[i - 1]))
+        ) or (
+            havePunctuation(output[i + 1]) and (i + 2 < len(output) and havePunctuation(output[i + 2]))
+        )
+
+        if not haveRestrictedWord and not bothPunct and not createsCluster:
+            validIndex.append(i)
+
+    if not validIndex: return False
+
+    rand_index = random.choice(validIndex)
+    output[rand_index], output[rand_index + 1] = output[rand_index + 1], output[rand_index]
+    return True
+
+
 # -----------------------------
-# GEG Logic
+# GEG LOGIC (MODIFIED FOR ONE ERROR and new insertion)
 # -----------------------------
-def apply_artificial_errors(tokens, max_errors = 2):
-    output = tokens.copy()
-    error_count = random.randint(1, max_errors)
-    operation = ['insert', 'delete', 'substitute', 'swap']
-    performed_operation = [] # Keep a list of operations already performed
-    generated_error_type = []
-    sub_indices = [] # Keep a list of tokens already replaced
+def apply_one_artificial_error(tokens):
+    """
+    Tries to apply exactly one operation to the token list.
+    Prioritizes enclitic confusion if the sentence contains target enclitics.
+    Then tries other substitution-style errors, then deletion/swapping.
+    """
+    output = list(tokens)
 
-    while error_count > 0:
-        filtered_operation = [
-            value for value, value in enumerate(operation)
-            if value not in performed_operation
-        ]
+    # --- Priority Step: Check for enclitic candidates ---
+    enclitic_targets = ['din', 'rin', 'daw', 'raw', 'doon', 'roon', 'diyan', 'riyan']
+    contains_enclitic = any(token.lower() in enclitic_targets for token in output)
 
-        rand_operation = random.choice(filtered_operation)
+    if contains_enclitic:
+        temp_output = list(output)
+        if apply_enclitic_confusion(temp_output, []):
+            return temp_output, ['substitute'], ['enclitic']
 
-        # Insert operation
-        if rand_operation == 'insert':
-            # Insert a random token at a random non-empty index
-            rand_token = random.choice(function_words)
-            rand_index = random.randint(0, len(output) - 1)
-            output.insert(rand_index, rand_token)
+    # --- If no enclitic error applied, proceed with other operations ---
+    operations_to_try = ['substitute', 'delete', 'swap']
+    random.shuffle(operations_to_try)
 
-            sub_indices = [i + 1 if i > rand_index else i for i in sub_indices] # Keep track of indices shift
+    for operation in operations_to_try:
+        if operation == 'substitute':
+            error_types_to_try = list(error_function_map.keys())
+            random.shuffle(error_types_to_try)
+            for error_type in error_types_to_try:
+                # Skip enclitic confusion here since it was already prioritized above
+                if error_type == "enclitic":
+                    continue
+                temp_output = list(output)
+                if error_function_map[error_type](temp_output, []):
+                    return temp_output, ['substitute'], [error_type]
 
-            # print(f"Inserted '{rand_token}' before '{output[rand_index + 1]}'") # for tracking
+        elif operation == 'delete':
+            temp_output = list(output)
+            if perform_deletion(temp_output):
+                return temp_output, ['delete'], []
 
-        # Delete operation
-        elif rand_operation == 'delete':
-            rand_index = random.randint(0, len(output) - 1) # Choose a random index
+        elif operation == 'swap':
+            temp_output = list(output)
+            if perform_swap(temp_output):
+                return temp_output, ['swap'], []
 
-            # print(f"Deleted '{output[rand_index]}'") # for tracking
-
-            del output[rand_index]
-
-            sub_indices = [i - 1 if i > rand_index else i for i in sub_indices if i != rand_index] # Keep track of indices shift
-
-        # Substitution operation
-        elif rand_operation == 'substitute': 
-            checked_error_types = []; # Keep a list of error types already tried
-            
-            # Choose a random weighted error type for substitution
-            while True:
-                filter_error_type = [
-                    (k, substitution_errors[k])
-                    for k in substitution_errors
-                    if k not in checked_error_types
-                ]
-
-                if filter_error_type: 
-                    population, weights = zip(*filter_error_type)
-                    error_type = random.choices(
-                        population=population, 
-                        weights=weights, 
-                        k=1
-                    )[0]
-                else:
-                    # print("No valid substitution operation can be performed.") # for tracking
-                    break
-
-                # Repeat choosing of error type until a valid one is performed
-                substituted = error_function_map[error_type](output, sub_indices)
-
-                if substituted:
-                    generated_error_type.append(error_type) 
-                    break
-                else: checked_error_types.append(error_type)
-        
-        # Swap operation
-        elif rand_operation == 'swap':
-            while True:
-                rand_index = random.randint(0, len(output) - 2)
-                if output[rand_index] != output[rand_index + 1]:
-                    break
-
-            # print(f"Swapped '{output[rand_index]}' ↔ '{output[rand_index + 1]}'")
-
-            output[rand_index], output[rand_index + 1] = output[rand_index + 1], output[rand_index]
-
-            # Keep track of index swapping
-            new_sub_indices = []
-            for i in sub_indices:
-                if i == rand_index:
-                    new_sub_indices.append(i + 1)
-                elif i == rand_index + 1:
-                    new_sub_indices.append(i - 1)
-                else:
-                    new_sub_indices.append(i)
-            sub_indices = new_sub_indices
-
-        error_count -= 1 # Decrement remaining error count to apply
-        performed_operation.append(rand_operation)
-
-    return output, performed_operation, generated_error_type
+    return tokens, [], []  # Return original if no error could be applied
 
 def tokenize(text):
-    # Splits words and keeps punctuation as separate tokens
-    return re.findall(r"\w+(?:[-']\w+)*|[^\w\s]", text, re.UNICODE)
+    """Tokenizer that splits words, punctuation, and common Filipino clitics."""
+    tokens = re.findall(r"\w+(?:[-']\w+)*|[^\w\s]", text, re.UNICODE)
+    processed_tokens = []
+    for token in tokens:
+        match = re.match(r"(\w+)(['’])([yt]|ng)$", token, re.UNICODE)
+        if match:
+            processed_tokens.extend([match.group(1), match.group(2) + match.group(3)])
+        else:
+            processed_tokens.append(token)
+    return processed_tokens
 
 def detokenize(tokens):
-    text = ' '.join(tokens)
-    # Remove space before punctuation
-    text = re.sub(r'\s+([?.!",;:])', r'\1', text)
-    return text
+    """Joins tokens back into a string with correct spacing."""
+    if not tokens: return ""
+    text = ""
+    no_space_after = False
+    for i, token in enumerate(tokens):
+        if i == 0 or token in ".,?!:;" or token.startswith("'") or token.startswith("’") or no_space_after:
+            text += token
+        else:
+            text += " " + token
+        no_space_after = token in "([{"
+    return re.sub(r'\s+', ' ', text).strip()
 
-# -----------------------------
-# Load clean sentences
-# -----------------------------
-def load_sentences_from_file(file_path):
-    with open(file_path, encoding='utf-8') as f:
-        return [tokenize(line.strip()) for line in f if line.strip()]
+def normalize_punctuation(text):
+    text = re.sub(r'([!?.,]){2,}', lambda m: m.group(0)[0], text) # avoid duplicates marks
+    return text
 
 # -----------------------------
 # MAIN EXECUTION
 # -----------------------------
 if __name__ == "__main__":
+    try:
+        print("Attempting to load cleaned dataset from local folder...")
 
-    from collections import Counter
+        # If the CSV is in the same folder, just use its filename
+        file_path = "cleanedTintaDataset.csv"
+        df = pd.read_csv(file_path)
+
+        # Extract text column
+        sentence_sources = [text for text in df["Correct"] if isinstance(text, str) and text.strip()]
+
+        print(f"✅ Loaded {len(sentence_sources)} cleaned sentences from CSV.")
+    except Exception as e:
+        print(f"⚠️  Could not load dataset from Hub. Reason: {e}")
+        print("--> Using built-in sample sentences as a fallback.")
+        sentence_sources = ["Fallback EncountereD"]
+
+    tokenized_sentences = [tokenize(text) for text in sentence_sources]
+
     error_summary = Counter()
     operation_summary = Counter()
 
-    # 1. Load input
-    sentence_list = load_sentences_from_file("sentences.txt")
-
-    # 2. Write to CSV
     with open("error_data.csv", "w", newline='', encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["incorrect", "correct", "errors"])
+        writer.writerow(["correct", "incorrect", "operation", "error_type"])
+        for tokens in tokenized_sentences:
+            if len(tokens) < 3: continue
 
-        for tokens in sentence_list:
-            correct = detokenize(tokens)
-            # print(f"Original Sentence: {correct}\n")
-            incorrect_tokens, performed_operation, generated_error_type = apply_artificial_errors(tokens, max_errors = 2)
-            incorrect = detokenize(incorrect_tokens)
-            error_info = f"operations: {', '.join(performed_operation)}; errors: {', '.join(generated_error_type)}"
-            # print(f"\nGenerated Erroneous Sentence: {incorrect}")
-            # print("-----------------------------")
-            writer.writerow([incorrect, correct, error_info])
-            error_summary.update(generated_error_type)
-            operation_summary.update(performed_operation)
+            correct = normalize_punctuation(detokenize(tokens))
+            incorrect_tokens, performed_ops, generated_errors = apply_one_artificial_error(tokens)
+            incorrect = normalize_punctuation(detokenize(incorrect_tokens))
 
-    print("✅ 'error_data.csv' successfully generated.")
+            if incorrect != correct:
+                op = performed_ops[0] if performed_ops else "none"
+                err = generated_errors[0] if generated_errors else "none"
+                writer.writerow([correct, incorrect, op, err])
+                if generated_errors:
+                    error_summary.update(generated_errors)
+                operation_summary.update(performed_ops)
 
-# -----------------------------
-# Write error summary to CSV
-# -----------------------------
+    print("\n✅ 'error_data.csv' successfully generated.")
 
-summary_file = "error_distribution.csv"
-total_errors = sum(error_summary.values())
+    # --- Summary Writing ---
+    summary_file = "error_distribution.csv"
+    total_errors = sum(error_summary.values())
+    error_label_map = {
+        "insertion": "Realistic Insertion (Stutter/Filler)",
+        "ligature": "Ligature Confusion (-ng/-g vs. na)",
+        "morphological": "Morphological Prefix Confusion",
+        "ng_nang": "Grammatical Confusion (ng vs. nang)",
+        "missing_space": "Missing Space",
+        "extra_space": "Extra Space",
+        "enclitic": "Enclitic D/R Confusion (din vs. rin)",
+        "incorrect_syllable_reduplication": "Incorrect Syllable Reduplication",
+        "morphological_punctuation": "Hyphen/Apostrophe Error",
+        "sentence_level_punctuation": "Sentence-Level Punctuation Error",
 
-# Optional: label mapping for readability
-error_label_map = {
-        "ligature": "Use of ligatures",
-        "enclitic": "Use of enclitics",
-        "hyphenation": "Hyphenation",
-        "ng_nang": "Use of “nang” and “ng”",
-        "morphological": "Morphophonemic change",
-        "repetition": "Word repetition",
     }
-
-with open(summary_file, "w", newline='', encoding="utf-8") as summary_csv:
+    with open(summary_file, "w", newline='', encoding="utf-8") as summary_csv:
         writer = csv.writer(summary_csv)
-        writer.writerow(["Category of errors", "Frequency", "Percentage"])
+        writer.writerow(["Category of Errors", "Frequency", "Percentage"])
+        if total_errors > 0:
+            for error, freq in sorted(error_summary.items()):
+                label = error_label_map.get(error, error)
+                percent = (freq / total_errors) * 100
+                writer.writerow([label, freq, f"{percent:.1f}%"])
+            writer.writerow(["Total Substitution Errors", total_errors, "100%"])
+    print(f"📁 '{summary_file}' successfully generated.")
 
-        for error, freq in error_summary.items():
-            label = error_label_map.get(error, error)
-            percent = (freq / total_errors) * 100
-            writer.writerow([label, freq, f"{percent:.1f}%"])
-
-        writer.writerow(["Total error", total_errors, "100%"])
-
-print(f"📁 '{summary_file}' successfully generated.")
-
-# -----------------------------
-# Write operation summary to CSV
-# -----------------------------
-operation_file = "operation_distribution.csv"
-total_operations = sum(operation_summary.values())
-
-with open(operation_file, "w", newline='', encoding="utf-8") as op_csv:
-    writer = csv.writer(op_csv)
-    writer.writerow(["Type of operation", "Frequency", "Percentage"])
-
-    for operation, freq in operation_summary.items():
-        percent = (freq / total_operations) * 100 if total_operations > 0 else 0
-        writer.writerow([operation.capitalize(), freq, f"{percent:.1f}%"])
-
-    writer.writerow(["Total operations", total_operations, "100%"])
-
-print(f"📁 '{operation_file}' successfully generated.")
-
+    operation_file = "operation_distribution.csv"
+    total_operations = sum(operation_summary.values())
+    with open(operation_file, "w", newline='', encoding="utf-8") as op_csv:
+        writer = csv.writer(op_csv)
+        writer.writerow(["Type of Operation", "Frequency", "Percentage"])
+        if total_operations > 0:
+            for operation, freq in sorted(operation_summary.items()):
+                percent = (freq / total_operations) * 100
+                writer.writerow([operation.capitalize(), freq, f"{percent:.1f}%"])
+            writer.writerow(["Total Operations", total_operations, "100%"])
+    print(f"📁 '{operation_file}' successfully generated.")

@@ -1,6 +1,5 @@
-Type of operation,Frequency,Percentage
-Insert,40695,24.9%
-Substitute,40816,25.0%
-Delete,40885,25.1%
-Swap,40810,25.0%
-Total operations,163206,100%
+Type of Operation,Frequency,Percentage
+Delete,82466,32.5%
+Substitute,89400,35.2%
+Swap,81851,32.3%
+Total Operations,253717,100%

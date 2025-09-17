@@ -1,8 +1,12 @@
-Category of errors,Frequency,Percentage
-Use of ligatures,28949,70.9%
-Use of enclitics,3424,8.4%
-Word repetition,3649,8.9%
-Use of “nang” and “ng”,2081,5.1%
-Hyphenation,2209,5.4%
-Morphophonemic change,504,1.2%
-Total error,40816,100%
+Category of Errors,Frequency,Percentage
+Enclitic D/R Confusion (din vs. rin),8847,9.9%
+Extra Space,12974,14.5%
+Incorrect Syllable Reduplication,4,0.0%
+Realistic Insertion (Stutter/Filler),12600,14.1%
+Ligature Confusion (-ng/-g vs. na),12002,13.4%
+Missing Space,11119,12.4%
+Morphological Prefix Confusion,9014,10.1%
+Hyphen/Apostrophe Error,438,0.5%
+Grammatical Confusion (ng vs. nang),9568,10.7%
+Sentence-Level Punctuation Error,12834,14.4%
+Total Substitution Errors,89400,100%
